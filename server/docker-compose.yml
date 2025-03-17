@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - logs_backend_network
+  backend:
+    container_name: logs_backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env
+    expose:
+      - "5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - logs_backend_network
+volumes:
+  postgres_data:
+
+networks:
+  logs_backend_network:
+    external: true
