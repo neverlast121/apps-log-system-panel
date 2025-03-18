@@ -1,14 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "./card";
 import axios from "axios";
 import { Button } from "./button";
 import { NotificationDropdown } from "./NotificationDropdown";
 import { User, PlusCircle, Trash } from "lucide-react";
-import io from "socket.io-client";
-
-const socket = io("http://localhost:5000", {
-  transports: ["websocket", "polling"],
-});
 
 export default function App() {
   const [notifications, setNotifications] = useState([]);
@@ -19,6 +14,7 @@ export default function App() {
   const [apps, setApps] = useState([]);
   const [newApp, setNewApp] = useState("");
   const [logs, setLogs] = useState([]);
+  const dropdownRef = useRef(null);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -49,17 +45,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [fetchLogs]);
 
-  useEffect(() => {
-    socket.on("new_log", (log) => {
-      console.log("New log received via WebSocket:", log);
-      setLogs((prevLogs) => [log, ...prevLogs]);
-    });
-
-    return () => {
-      socket.off("new_log");
-    };
-  }, []);
-  // Fetch apps
   useEffect(() => {
     axios.get("http://localhost:5000/apps").then((response) => {
       setApps(response.data.filter((app) => !app.deleted));
@@ -221,7 +206,12 @@ export default function App() {
         {apps.length > 0 ? (
           <Card className="p-6 bg-gray-50 rounded-md shadow-lg border border-gray-300">
             <h2 className="text-lg font-bold text-gray-700 mb-3">LOGS</h2>
-            <div className="space-y-2">
+            <div
+              className={`space-y-2 ${
+                logs.length > 8 ? "overflow-y-auto max-h-64" : ""
+              }`}
+              ref={dropdownRef}
+            >
               {logs.map((log) => (
                 <p
                   key={log.id}

@@ -1,5 +1,6 @@
 # Build Stage
 FROM node:18-alpine AS build
+
 WORKDIR /usr/src/app
 
 # Copy package files and install dependencies
