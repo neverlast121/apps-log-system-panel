@@ -17,9 +17,10 @@ axios
     {
       service_id: "Test App",
       message: "Rate limit exceeded",
-      level: "warring",
+      level: "warning",
       time: new Date().toISOString(),
     },
+
     {
       service_id: "Test App",
       message: "New entry added for test",

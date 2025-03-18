@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "./card";
 import axios from "axios";
 import { Button } from "./button";
@@ -20,38 +20,45 @@ export default function App() {
   const [newApp, setNewApp] = useState("");
   const [logs, setLogs] = useState([]);
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const defaultApp =
-          selectedApp.toLowerCase() || apps[0]?.service_id || "";
-        const logTypeParam = logType === "all" ? "" : logType;
-        const url = `http://localhost:5000/logs`;
-        const res = await axios.get(url, {
-          params: {
-            limit: limit,
-            service_id: defaultApp,
-            level: logTypeParam,
-            timeFrame: timeFrame,
-          },
-        });
-        setLogs(res.data);
-        console.log("Data fetched:", res.data);
-      } catch (error) {
-        console.error("Error fetching logs:", error);
-      }
-    };
-    fetchLogs();
+  const fetchLogs = useCallback(async () => {
+    try {
+      const defaultApp = selectedApp.toLowerCase() || apps[0]?.service_id || "";
+      const logTypeParam = logType === "all" ? "" : logType;
+      const url = `http://localhost:5000/logs`;
 
+      const res = await axios.get(url, {
+        params: {
+          limit: limit,
+          service_id: defaultApp,
+          level: logTypeParam,
+          timeFrame: timeFrame,
+        },
+      });
+
+      setLogs(res.data);
+      console.log("Logs fetched:", res.data);
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+    }
+  }, [selectedApp, logType, limit, timeFrame, apps]);
+
+  useEffect(() => {
+    fetchLogs(); // Initial fetch
+    const interval = setInterval(fetchLogs, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchLogs]);
+
+  useEffect(() => {
     socket.on("new_log", (log) => {
+      console.log("New log received via WebSocket:", log);
       setLogs((prevLogs) => [log, ...prevLogs]);
     });
 
     return () => {
       socket.off("new_log");
     };
-  }, [selectedApp, logType, apps, limit, timeFrame]);
-
+  }, []);
   // Fetch apps
   useEffect(() => {
     axios.get("http://localhost:5000/apps").then((response) => {

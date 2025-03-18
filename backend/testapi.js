@@ -1,6 +1,11 @@
 const axios = require("axios");
+import io from "socket.io-client";
 
 const BASE_URL = "http://localhost:5000";
+
+const socket = io(BASE_URL, {
+  transports: ["websocket", "polling"],
+});
 
 // Test fetching all logs
 async function testGetLogs() {
@@ -59,6 +64,17 @@ async function testAddLogs() {
   }
 }
 
+// Test fetching realtime log.
+async function setupSocketListener() {
+  // Test fetching realtime log.
+  socket.on("new_log", (log) => {
+    console.log("realtime logs,", log);
+  });
+
+  return () => {
+    socket.off("new_log");
+  };
+}
 // Test fetching all applications
 async function testGetApps() {
   try {
@@ -96,6 +112,7 @@ async function runTests() {
   await testGetLogs();
   await testAddLog();
   await testAddLogs();
+  await setupSocketListener();
   await testGetApps();
   await testAddApp();
   await testRemoveApp();
