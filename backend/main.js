@@ -2,33 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const sequelize = require("./index");
 const { Log, App } = require("./models");
-const http = require("http");
-const { Server } = require("socket.io");
 const { Op, Sequelize } = require("sequelize");
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
-  },
-});
-
 app.use(express.json());
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(cors({ origin: "*", credentials: true }));
 
 // Sync database
 sequelize.sync({ alter: true }).then(() => console.log("Database synced."));
-
-// WebSocket connection
-io.on("connection", (socket) => {
-  console.log("A user connected");
-
-  socket.on("disconnect", () => {
-    console.log("A user disconnected");
-  });
-});
 
 // Async function to generate the time condition
 const getTimeCondition = async (timeFrame) => {
@@ -107,8 +88,6 @@ app.post("/log", async (req, res) => {
 
     const newLog = await Log.create({ service_id, message, level, time });
 
-    io.emit("new_log", newLog);
-
     res.json({ message: "Log added successfully", log: newLog });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -131,9 +110,6 @@ app.post("/logs", async (req, res) => {
     }
     // Insert all logs in bulk
     const newLogs = await Log.bulkCreate(logs);
-
-    io.emit("new_log", newLogs);
-
     res.json({ message: "Logs added successfully", log: newLogs });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -208,4 +184,5 @@ app.post("/apps/:server_id", async (req, res) => {
 });
 
 const PORT = 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const HOST = '0.0.0.0';
+app.listen(PORT, HOST,() => console.log(`Server running on port ${PORT}`));

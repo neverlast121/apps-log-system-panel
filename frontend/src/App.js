@@ -16,13 +16,14 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const dropdownRef = useRef(null);
 
+  const BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
   const fetchLogs = useCallback(async () => {
     try {
       const defaultApp = selectedApp.toLowerCase() || apps[0]?.service_id || "";
       const logTypeParam = logType === "all" ? "" : logType;
-      const url = `http://localhost:5000/logs`;
+      
 
-      const res = await axios.get(url, {
+      const res = await axios.get(`${BASE_URL}/logs`, {
         params: {
           limit: limit,
           service_id: defaultApp,
@@ -46,7 +47,7 @@ export default function App() {
   }, [fetchLogs]);
 
   useEffect(() => {
-    axios.get("http://localhost:5000/apps").then((response) => {
+    axios.get(`${BASE_URL}/apps`).then((response) => {
       setApps(response.data.filter((app) => !app.deleted));
     });
   }, []);
@@ -56,7 +57,7 @@ export default function App() {
     try {
       if (newApp.trim()) {
         axios
-          .post("http://localhost:5000/apps", { service_id: newApp.trim() })
+          .post(`${BASE_URL}/apps`, { service_id: newApp.trim() })
           .then((res) => {
             setApps([...apps, res.data]);
             setNewApp("");
@@ -71,7 +72,7 @@ export default function App() {
   const removeApp = async (serviceId) => {
     try {
       const response = await axios.post(
-        `http://localhost:5000/apps/${serviceId}`
+        `${BASE_URL}/apps/${serviceId}`
       );
       setApps(response.data.apps);
       setSelectedApp(
