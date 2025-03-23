@@ -1,48 +1,125 @@
 const express = require("express");
 const cors = require("cors");
-const sequelize = require("./index");
-const { Log, App } = require("./models");
+const sequelize = require("./db");
+const { Log, App, Account } = require("./models");
 const { Op, Sequelize } = require("sequelize");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { path } = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const app = express();
-app.use(express.json());
-app.use(cors({ origin: "*", credentials: true }));
 
-// Sync database
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || process.env.FRONTEND_LOCAL,
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const SECRET_KEY = process.env.JWT_SECRET_KEY;
+
 sequelize.sync({ alter: true }).then(() => console.log("Database synced."));
 
 // Async function to generate the time condition
 const getTimeCondition = async (timeFrame) => {
   if (!timeFrame) return null;
 
-  switch (timeFrame) {
-    case "10m":
-      return Sequelize.literal(
-        `CAST("time" AS TIMESTAMP) >= NOW() - INTERVAL '10 minutes'`
-      );
-    case "30m":
-      return Sequelize.literal(
-        `CAST("time" AS TIMESTAMP) >= NOW() - INTERVAL '30 minutes'`
-      );
-    case "1h":
-      return Sequelize.literal(
-        `CAST("time" AS TIMESTAMP) >= NOW() - INTERVAL '1 hour'`
-      );
-    case "24h":
-      return Sequelize.literal(
-        `CAST("time" AS TIMESTAMP) >= NOW() - INTERVAL '24 hours'`
-      );
-    case "7d":
-      return Sequelize.literal(
-        `CAST("time" AS TIMESTAMP) >= NOW() - INTERVAL '7 days'`
-      );
-    default:
-      return null;
+  const timeMap = {
+    "10m": "10 minutes",
+    "30m": "30 minutes",
+    "1h": "1 hour",
+    "24h": "24 hours",
+    "7d": "7 days",
+  };
+  return timeMap[timeFrame]
+    ? Sequelize.literal(
+        `CAST("time" AS TIMESTAMP) >= NOW() - INTERVAL '${timeMap[timeFrame]}'`
+      )
+    : null;
+};
+
+// Jwt Middleware
+const VerifyToken = (req, res, next) => {
+  const token = req.header("Authorization")?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Access Denied" });
+
+  try {
+    const verified = jwt.verify(token, SECRET_KEY);
+    req.user = verified;
+    next();
+  } catch (error) {
+    res.status(403).json({ error: "Invalid Token" });
   }
 };
 
+// Register User
+app.post("/v1/register", async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    if (!username || !email || !password)
+      return res.status(400).json({ error: "All fields are required" });
+    const userExists = await Account.findOne({ where: { email } });
+    if (userExists)
+      return res.status(400).json({ error: "Email already exists" });
+
+    const newUser = await Account.create({
+      username,
+      email,
+      password,
+    });
+
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+//User Login
+app.post("/v1/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ error: "All fields are required" });
+
+    const user = await Account.findOne({ where: { email } });
+    if (!user) return res.status(400).json({ error: "User not found" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(400).json({ error: "Invalid credenitails" });
+
+    const token = jwt.sign({ userId: user.id }, SECRET_KEY, {
+      expiresIn: "7d",
+    });
+
+    res.json({ message: "Login successful", token });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// reset the password
+app.post("/v1/reset-password", async (req, res) => {
+  try {
+    const { username, newPassword } = req.body;
+    if (!username || !newPassword)
+      return res.status(400).json({ error: "All fields are required" });
+
+    const user = await Account.findOne({ where: { username } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    await user.update({ password: newPassword });
+
+    res.json({ message: "Password reset successful" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all logs
-app.get("/logs", async (req, res) => {
+app.get("/v1/logs", VerifyToken, async (req, res) => {
   try {
     const { limit, service_id, level, timeFrame } = req.query; // Accept limit, service_id, and level from query params
 
@@ -79,8 +156,8 @@ app.get("/logs", async (req, res) => {
   }
 });
 
-// Add a logs manually
-app.post("/log", async (req, res) => {
+// Add a log manually
+app.post("/v1/log", VerifyToken, async (req, res) => {
   try {
     const { service_id, message, level, time } = req.body;
     if (!service_id || !message || !level || !time)
@@ -94,7 +171,8 @@ app.post("/log", async (req, res) => {
   }
 });
 
-app.post("/logs", async (req, res) => {
+// post list of logs to save to db
+app.post("/v1/logs", VerifyToken, async (req, res) => {
   try {
     const logs = req.body; // Expecting an array of logs
     if (!Array.isArray(logs) || logs.length === 0) {
@@ -116,8 +194,8 @@ app.post("/logs", async (req, res) => {
   }
 });
 
-// Get all applications
-app.get("/apps", async (req, res) => {
+// Get all apps
+app.get("/v1/apps", VerifyToken, async (req, res) => {
   try {
     const apps = await App.findAll();
     res.json(apps);
@@ -126,7 +204,8 @@ app.get("/apps", async (req, res) => {
   }
 });
 
-app.post("/apps", async (req, res) => {
+// create app or update
+app.post("/v1/add-app", VerifyToken, async (req, res) => {
   try {
     const { service_id } = req.body;
 
@@ -154,7 +233,7 @@ app.post("/apps", async (req, res) => {
 });
 
 // Remove an application
-app.post("/apps/:server_id", async (req, res) => {
+app.post("/v1/delete-app/:server_id", VerifyToken, async (req, res) => {
   try {
     // Ensure the requested app exists before updating
     const appToDelete = await App.findOne({
@@ -184,5 +263,5 @@ app.post("/apps/:server_id", async (req, res) => {
 });
 
 const PORT = 5000;
-const HOST = '0.0.0.0';
-app.listen(PORT, HOST,() => console.log(`Server running on port ${PORT}`));
+const HOST = "0.0.0.0";
+app.listen(PORT, HOST, () => console.log(`Server running on port ${PORT}`));

@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
-const sequelize = require("./index");
+const sequelize = require("./db");
+const bcrypt = require("bcryptjs");
 
 const Log = sequelize.define("Log", {
   id: {
@@ -27,6 +28,42 @@ const App = sequelize.define("App", {
   },
 });
 
+const Account = sequelize.define(
+  "Account",
+  {
+    username: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+    },
+    email: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+      validate: {
+        isEmail: true,
+      },
+    },
+    password: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+  },
+  {
+    hooks: {
+      beforeCreate: async (account) => {
+        const salt = await bcrypt.genSalt(10);
+        account.password = await bcrypt.hash(account.password, salt);
+      },
+      beforeUpdate: async (account) => {
+        if (account.changed("password")) {
+          const salt = await bcrypt.genSalt(10);
+          account.password = await bcrypt.hash(account.password, salt);
+        }
+      },
+    },
+  }
+);
 // Define associations
 App.hasMany(Log, { foreignKey: "service_id", sourceKey: "service_id" });
 Log.belongsTo(App, { foreignKey: "service_id", targetKey: "service_id" });
@@ -51,4 +88,4 @@ async function ensureAppExists(service_id) {
   }
 }
 
-module.exports = { Log, App };
+module.exports = { Log, App, Account };
