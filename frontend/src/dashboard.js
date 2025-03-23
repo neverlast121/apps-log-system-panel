@@ -4,6 +4,8 @@ import axios from "axios";
 import { Button } from "./button";
 import { NotificationDropdown } from "./NotificationDropdown";
 import { User, PlusCircle, Trash } from "lucide-react";
+const { path } = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", "..", ".env") });
 
 export default function Dashboard() {
   const [notifications, setNotifications] = useState([]);
@@ -15,14 +17,14 @@ export default function Dashboard() {
   const [newApp, setNewApp] = useState("");
   const [logs, setLogs] = useState([]);
   const dropdownRef = useRef(null);
-
+  const token = localStorage.getItem("token");
   const BASE_URL = process.env.SERVER_URL || process.env.LOCAL_HOST;
 
   const fetchLogs = useCallback(async () => {
     try {
       const defaultApp = selectedApp.toLowerCase() || apps[0]?.service_id || "";
       const logTypeParam = logType === "all" ? "" : logType;
-      const url = `${BASE_URL}/logs`;
+      const url = `${BASE_URL}/v1/logs`;
 
       const res = await axios.get(url, {
         params: {
@@ -31,6 +33,7 @@ export default function Dashboard() {
           level: logTypeParam,
           timeFrame: timeFrame,
         },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       setLogs(res.data);
@@ -48,9 +51,13 @@ export default function Dashboard() {
   }, [fetchLogs]);
 
   const fetchApps = useCallback(async () => {
-    axios.get(`${BASE_URL}/apps`).then((response) => {
-      setApps(response.data.filter((app) => !app.deleted));
-    });
+    axios
+      .get(`${BASE_URL}/v1/apps`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((response) => {
+        setApps(response.data.filter((app) => !app.deleted));
+      });
   }, []);
 
   useEffect(() => {
@@ -64,7 +71,10 @@ export default function Dashboard() {
     try {
       if (newApp.trim()) {
         axios
-          .post(`${BASE_URL}/apps`, { service_id: newApp.trim() })
+          .post(`${BASE_URL}/v1/add-app`, {
+            service_id: newApp.trim(),
+            headers: { Authorization: `Bearer ${token}` },
+          })
           .then((res) => {
             setApps([...apps, res.data]);
             setNewApp("");
@@ -78,7 +88,10 @@ export default function Dashboard() {
   // remove app in sidebar
   const removeApp = async (serviceId) => {
     try {
-      const response = await axios.post(`${BASE_URL}/apps/${serviceId}`);
+      const response = await axios.post(
+        `${BASE_URL}/v1/delete-app/${serviceId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setApps(response.data.apps);
       setSelectedApp(
         response.data.apps.length > 0 ? response.data.apps[0].service_id : ""

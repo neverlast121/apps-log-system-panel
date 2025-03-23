@@ -1,5 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
+const { validatePassword } = require("./utils");
+const { path } = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", "..", ".env") });
 
 const ForgotPassword = ({ onClose }) => {
   const [email, setEmail] = useState("");
@@ -7,22 +10,42 @@ const ForgotPassword = ({ onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [passwordFeedback, setPasswordFeedback] = useState({
+    valid: false,
+    message: "",
+  });
+  const BASE_URL = process.env.SERVER_URL || process.env.LOCAL_HOST;
+
+  const handlePasswordChange = (e) => {
+    const inputPassword = e.target.value;
+    setNewPassword(inputPassword);
+    setPasswordFeedback(validatePassword(inputPassword));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!email.includes("@")) {
+      setError("Please enter a valid email.");
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Passwords do not match.");
       setMessage("");
       return;
     }
+
+    if (!passwordFeedback.valid) {
+      setError(passwordFeedback.message);
+      return;
+    }
+
     try {
-      const response = await axios.post(
-        "http://localhost:5000/api/reset-password",
-        {
-          email,
-          newPassword,
-        }
-      );
+      const response = await axios.post(`${BASE_URL}/v1/reset-password`, {
+        email,
+        newPassword,
+      });
       setMessage(response.data.message);
       setError("");
     } catch (err) {
@@ -56,9 +79,20 @@ const ForgotPassword = ({ onClose }) => {
           type="password"
           className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2"
           value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
+          onChange={handlePasswordChange}
           required
         />
+        {/* 🔹 Show password validation feedback */}
+        {passwordFeedback.message && (
+          <p
+            className={`text-sm mt-1 ${
+              passwordFeedback.valid ? "text-green-500" : "text-red-500"
+            }`}
+          >
+            {passwordFeedback.message}
+          </p>
+        )}
+
         <label className="block text-gray-700 font-medium mt-4">
           Confirm Password
         </label>

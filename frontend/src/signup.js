@@ -1,18 +1,34 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
+const { validatePassword } = require("./utils");
+const { path } = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", "..", ".env") });
 const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [passwordFeedback, setPasswordFeedback] = useState({
+    valid: false,
+    message: "",
+  });
   const navigate = useNavigate();
   const BASE_URL = process.env.SERVER_URL || process.env.LOCAL_HOST;
+
+  const handlePasswordChange = (e) => {
+    const inputPassword = e.target.value;
+    setPassword(inputPassword);
+    setPasswordFeedback(validatePassword(inputPassword));
+  };
   const handleSignup = async (e) => {
     e.preventDefault();
+    if (!passwordFeedback.valid) {
+      setError(passwordFeedback.message);
+      return;
+    }
     try {
-      await axios.post(`${BASE_URL}/api/signup`, {
+      await axios.post(`${BASE_URL}/v1/register`, {
         name,
         email,
         password,
@@ -57,9 +73,19 @@ const Signup = () => {
               type="password"
               className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               required
             />
+            {/* 🔹 Show password validation feedback */}
+            {passwordFeedback.message && (
+              <p
+                className={`text-sm mt-1 ${
+                  passwordFeedback.valid ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {passwordFeedback.message}
+              </p>
+            )}
           </div>
           <button className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 transition duration-200">
             Sign Up

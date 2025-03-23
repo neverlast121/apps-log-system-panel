@@ -2,6 +2,9 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import ForgotPassword from "./forgotpass";
+const { validatePassword } = require("./utils");
+const { path } = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", "..", ".env") });
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -9,11 +12,26 @@ const Login = () => {
   const [error, setError] = useState("");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
+  const [passwordFeedback, setPasswordFeedback] = useState({
+    valid: false,
+    message: "",
+  });
   const BASE_URL = process.env.SERVER_URL || process.env.LOCAL_HOST;
+
+  const handlePasswordChange = (e) => {
+    const inputPassword = e.target.value;
+    setPassword(inputPassword);
+    setPasswordFeedback(validatePassword(inputPassword));
+  };
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!passwordFeedback.valid) {
+      setError(passwordFeedback.message);
+      return;
+    }
+
     try {
-      const response = await axios.post(`${BASE_URL}/api/login`, {
+      const response = await axios.post(`${BASE_URL}/v1/login`, {
         email,
         password,
       });
@@ -49,9 +67,19 @@ const Login = () => {
               type="password"
               className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               required
             />
+            {/* 🔹 Show password validation feedback */}
+            {passwordFeedback.message && (
+              <p
+                className={`text-sm mt-1 ${
+                  passwordFeedback.valid ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {passwordFeedback.message}
+              </p>
+            )}
           </div>
           <div className="flex justify-between items-center mb-4">
             <button
